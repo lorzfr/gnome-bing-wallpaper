@@ -10,6 +10,16 @@ This project includes an installer for **Zorin OS 18 (Debian-based)** that sets 
 ./install.sh
 ```
 
+Or run it directly from GitHub:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main/install.sh | sh
+```
+
+```bash
+wget -qO- https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main/install.sh | sh
+```
+
 What `install.sh` does:
 
 - verifies the OS is Debian-based (recommended target: Zorin OS 18),
