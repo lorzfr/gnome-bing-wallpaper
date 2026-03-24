@@ -1,11 +1,20 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 SERVICE_NAME="gnome-bing-wallpaper"
+REPO_RAW_BASE_URL="https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main"
 INSTALL_DIR="${HOME}/.local/bin"
 SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
 TARGET_SCRIPT="${INSTALL_DIR}/${SERVICE_NAME}"
-SOURCE_SCRIPT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/bing-wallpaper.sh"
+SOURCE_SCRIPT=""
+TEMP_SCRIPT=""
+
+cleanup() {
+  if [ -n "${TEMP_SCRIPT}" ] && [ -f "${TEMP_SCRIPT}" ]; then
+    rm -f "${TEMP_SCRIPT}"
+  fi
+}
+trap cleanup EXIT
 
 info() { echo -e "\033[1;34m[INFO]\033[0m $*"; }
 success() { echo -e "\033[1;32m[OK]\033[0m   $*"; }
@@ -13,21 +22,21 @@ warn() { echo -e "\033[1;33m[WARN]\033[0m $*"; }
 error() { echo -e "\033[1;31m[ERR]\033[0m  $*" >&2; }
 
 check_os() {
-  if [[ ! -f /etc/os-release ]]; then
+  if [ ! -f /etc/os-release ]; then
     error "Cannot detect OS (/etc/os-release missing)."
     exit 1
   fi
 
   # shellcheck disable=SC1091
-  source /etc/os-release
+  . /etc/os-release
 
-  local id_like="${ID_LIKE:-}"
-  if [[ "${ID}" != "debian" && "${ID}" != "zorin" && "${id_like}" != *"debian"* ]]; then
+  id_like="${ID_LIKE:-}"
+  if [ "${ID}" != "debian" ] && [ "${ID}" != "zorin" ] && ! printf '%s' "${id_like}" | grep -q "debian"; then
     error "This installer targets Debian-based systems (recommended: Zorin OS 18)."
     exit 1
   fi
 
-  if [[ "${ID}" == "zorin" && "${VERSION_ID:-}" != "18" ]]; then
+  if [ "${ID}" = "zorin" ] && [ "${VERSION_ID:-}" != "18" ]; then
     warn "Detected Zorin OS ${VERSION_ID:-unknown}. This is tuned for Zorin OS 18, but will continue."
   fi
 
@@ -40,7 +49,7 @@ check_gnome() {
     exit 1
   fi
 
-  if [[ ! -d /usr/share/gnome-shell ]] && ! command -v gnome-shell >/dev/null 2>&1; then
+  if [ ! -d /usr/share/gnome-shell ] && ! command -v gnome-shell >/dev/null 2>&1; then
     error "GNOME does not appear to be installed."
     exit 1
   fi
@@ -49,27 +58,49 @@ check_gnome() {
 }
 
 install_dependencies() {
-  local missing=()
+  missing=""
   for cmd in curl jq systemctl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
-      missing+=("$cmd")
+      missing="${missing} ${cmd}"
     fi
   done
 
-  if (( ${#missing[@]} == 0 )); then
+  if [ -z "${missing# }" ]; then
     success "Required commands already available."
     return
   fi
 
   if ! command -v sudo >/dev/null 2>&1; then
-    error "Missing required commands: ${missing[*]} and sudo is unavailable for installation."
+    error "Missing required commands:${missing} and sudo is unavailable for installation."
     exit 1
   fi
 
-  info "Installing missing dependencies: ${missing[*]}"
+  info "Installing missing dependencies:${missing}"
   sudo apt-get update
   sudo apt-get install -y curl jq systemd
   success "Dependencies installed."
+}
+
+prepare_source_script() {
+  local_script="$(pwd)/bing-wallpaper.sh"
+  if [ -f "${local_script}" ]; then
+    SOURCE_SCRIPT="${local_script}"
+    success "Using local wallpaper script from ${SOURCE_SCRIPT}"
+    return
+  fi
+
+  TEMP_SCRIPT="$(mktemp)"
+  info "Downloading wallpaper script from ${REPO_RAW_BASE_URL}/bing-wallpaper.sh"
+  if ! curl -fsSL "${REPO_RAW_BASE_URL}/bing-wallpaper.sh" -o "${TEMP_SCRIPT}"; then
+    rm -f "${TEMP_SCRIPT}"
+    TEMP_SCRIPT=""
+    error "Failed to download bing-wallpaper.sh from GitHub."
+    exit 1
+  fi
+
+  chmod 0755 "${TEMP_SCRIPT}"
+  SOURCE_SCRIPT="${TEMP_SCRIPT}"
+  success "Downloaded wallpaper script."
 }
 
 install_script() {
@@ -117,6 +148,7 @@ main() {
   check_os
   check_gnome
   install_dependencies
+  prepare_source_script
   install_script
   install_systemd_units
 
