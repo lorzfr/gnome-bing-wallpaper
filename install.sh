@@ -16,10 +16,10 @@ cleanup() {
 }
 trap cleanup EXIT
 
-info() { echo -e "\033[1;34m[INFO]\033[0m $*"; }
-success() { echo -e "\033[1;32m[OK]\033[0m   $*"; }
-warn() { echo -e "\033[1;33m[WARN]\033[0m $*"; }
-error() { echo -e "\033[1;31m[ERR]\033[0m  $*" >&2; }
+info() { printf "\033[1;34m[INFO]\033[0m %s\n" "$*"; }
+success() { printf "\033[1;32m[OK]\033[0m   %s\n" "$*"; }
+warn() { printf "\033[1;33m[WARN]\033[0m %s\n" "$*"; }
+error() { printf "\033[1;31m[ERR]\033[0m  %s\n" "$*" >&2; }
 
 check_os() {
   if [ ! -f /etc/os-release ]; then
