@@ -109,23 +109,39 @@ install_script() {
   success "Installed wallpaper script to ${TARGET_SCRIPT}"
 }
 
+
+write_optional_environment() {
+  unit_file="$1"
+  for var_name in WALLPAPER_SOURCE BING_MARKET BING_RESOLUTION NASA_API_KEY NASA_APOD_FALLBACK_COUNT ESA_IMAGES_URL; do
+    eval "var_value=\${${var_name}:-}"
+    if [ -n "${var_value}" ]; then
+      # Values intended for these options are URL/API-key/source strings without shell quoting needs.
+      printf 'Environment=%s=%s\n' "${var_name}" "${var_value}" >> "${unit_file}"
+    fi
+  done
+}
+
 install_systemd_units() {
   mkdir -p "${SYSTEMD_USER_DIR}"
 
-  cat > "${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service" <<UNIT
+  service_unit="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
+  cat > "${service_unit}" <<UNIT
 [Unit]
-Description=Set GNOME wallpaper from Bing
+Description=Set GNOME wallpaper from configured image source
 After=graphical-session.target
 Wants=graphical-session.target
 
 [Service]
 Type=oneshot
+UNIT
+  write_optional_environment "${service_unit}"
+  cat >> "${service_unit}" <<UNIT
 ExecStart=%h/.local/bin/${SERVICE_NAME}
 UNIT
 
   cat > "${SYSTEMD_USER_DIR}/${SERVICE_NAME}.timer" <<UNIT
 [Unit]
-Description=Run Bing wallpaper updater daily
+Description=Run GNOME wallpaper updater daily
 
 [Timer]
 OnBootSec=2min
