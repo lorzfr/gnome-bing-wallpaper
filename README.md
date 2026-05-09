@@ -49,6 +49,12 @@ You can override the Bing market with `BING_MARKET`:
 BING_MARKET=en-US ./bing-wallpaper.sh
 ```
 
+By default the script downloads Bing's UHD image when available. You can request another Bing image size with `BING_RESOLUTION` (for example `1920x1080`):
+
+```bash
+BING_RESOLUTION=1920x1080 ./bing-wallpaper.sh
+```
+
 ## Requirements
 
 - GNOME desktop (`gsettings`, `gnome-shell`)
@@ -59,7 +65,7 @@ BING_MARKET=en-US ./bing-wallpaper.sh
 The script:
 
 - fetches Bing's daily wallpaper metadata for the `de-DE` market,
-- downloads the image to `~/Pictures/bing-wallpaper.jpg`,
+- downloads the UHD image to `~/Pictures/bing-wallpaper.jpg` when available, with a fallback to Bing's default image,
 - sets both `picture-uri` and `picture-uri-dark` in GNOME.
 
 ## Requirements
