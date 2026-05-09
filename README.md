@@ -1,23 +1,23 @@
-# gnome-bing-wallpaper
+# bingwallpaper for GNOME
 
-A simple headless setup for downloading a daily wallpaper and applying it to GNOME. It supports Bing by default, plus optional space-image sources from NASA APOD and ESA Images.
+`bingwallpaper` is a small GNOME wallpaper program that downloads a fresh image, applies it as your light and dark GNOME wallpaper, and can check for new wallpapers automatically in the background.
 
-## Quick install (recommended)
-
-This project includes an installer for **Zorin OS 18 (Debian-based)** that sets up a **systemd user service + timer**.
+It installs as a real user command:
 
 ```bash
-./install.sh
+bingwallpaper
 ```
 
-To install the timer with a non-default source, pass the source when you run the installer. The installer writes supported provider variables into the systemd user service:
+Running that command opens a simple terminal UI (TUI) where you can choose:
 
-```bash
-WALLPAPER_SOURCE=nasa NASA_API_KEY="your_api_key_here" ./install.sh
-WALLPAPER_SOURCE=esa ./install.sh
-```
+- whether automatic wallpaper checks are **enabled**,
+- how often the wallpaper should be checked/updated,
+- which image source to use,
+- where downloaded wallpapers should be saved.
 
-Or run it directly from GitHub:
+## Quick install
+
+Install with **one** of these commands:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main/install.sh | sh
@@ -27,95 +27,173 @@ curl -fsSL https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main/in
 wget -qO- https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main/install.sh | sh
 ```
 
-What `install.sh` does:
+The installer will:
 
-- verifies the OS is Debian-based (recommended target: Zorin OS 18),
-- verifies GNOME is installed,
-- installs missing dependencies (`curl`, `jq`, `systemd`) when needed,
-- installs the updater script to `~/.local/bin/gnome-bing-wallpaper`,
-- creates and enables:
-  - `~/.config/systemd/user/gnome-bing-wallpaper.service`
-  - `~/.config/systemd/user/gnome-bing-wallpaper.timer`
+1. check that you are on a Debian-based GNOME system,
+2. install missing requirements when possible,
+3. install the program as `~/.local/bin/bingwallpaper`,
+4. create a user config file at `~/.config/bingwallpaper/config`,
+5. create a systemd user service and timer,
+6. open the `bingwallpaper` TUI so you can choose your settings.
 
-The timer runs at boot (after 2 minutes) and then every 24 hours.
+> If the installer says `~/.local/bin` is not in your `PATH`, open a new terminal or add `export PATH="$HOME/.local/bin:$PATH"` to your shell config.
 
-## Manual run
+## First use
 
-Run the script directly:
+After installation, open the TUI at any time:
 
 ```bash
-./bing-wallpaper.sh
+bingwallpaper
 ```
 
-By default, the script uses Bing. Choose another source with `WALLPAPER_SOURCE`:
+The TUI menu lets you change the main settings without editing files by hand:
+
+- **Enabled?** Turn automatic wallpaper checks on or off.
+- **Update/check interval** Choose hourly, every 6 hours, every 12 hours, daily, weekly, or a custom systemd interval such as `30min`, `8h`, or `2d`.
+- **Source** Choose `Bing`, `NASA APOD`, or `ESA Images`.
+- **Save directory** Choose where downloaded wallpaper files are stored.
+
+Choose **Save settings and apply systemd timer** after changing automatic update settings.
+
+## Daily commands
+
+Update the wallpaper immediately:
 
 ```bash
-WALLPAPER_SOURCE=bing ./bing-wallpaper.sh
-WALLPAPER_SOURCE=nasa ./bing-wallpaper.sh
-WALLPAPER_SOURCE=esa ./bing-wallpaper.sh
+bingwallpaper --update
 ```
 
-Supported sources:
-
-- `bing` - Bing's daily wallpaper.
-- `nasa` or `apod` - NASA Astronomy Picture of the Day (APOD). If today's APOD is a video, the script asks APOD for random recent image entries and uses the first image returned.
-- `esa` - the latest ESA Images listing entry. ESA may block some scripted requests; if that happens, run again later or use `bing`/`nasa`.
-
-### Common options
-
-Save to a different directory or exact file path:
+Show the current configuration:
 
 ```bash
-WALLPAPER_TARGET_DIR="$HOME/Pictures/Wallpapers" ./bing-wallpaper.sh
-WALLPAPER_TARGET_FILE="$HOME/Pictures/current-wallpaper.jpg" ./bing-wallpaper.sh
+bingwallpaper --status
 ```
 
-Override the HTTP user agent used for all providers:
+Recreate and enable/disable the systemd timer from the saved configuration:
 
 ```bash
-WALLPAPER_USER_AGENT="Mozilla/5.0 my-wallpaper-script" ./bing-wallpaper.sh
+bingwallpaper --apply
 ```
 
-### Bing options
-
-You can override the Bing market with `BING_MARKET`:
+Open help:
 
 ```bash
-BING_MARKET=en-US ./bing-wallpaper.sh
+bingwallpaper --help
 ```
 
-By default the script downloads Bing's UHD image when available. You can request another Bing image size with `BING_RESOLUTION` (for example `1920x1080`):
+## Wallpaper sources
 
-```bash
-BING_RESOLUTION=1920x1080 ./bing-wallpaper.sh
+### Bing daily wallpaper
+
+This is the default source. It downloads Bing's current daily wallpaper.
+
+TUI settings for Bing:
+
+- **Bing market**: region/language for the Bing image feed, for example `de-DE` or `en-US`.
+- **Bing resolution**: defaults to `UHD`. You can also use a size such as `1920x1080`.
+
+### NASA APOD
+
+NASA APOD means NASA Astronomy Picture of the Day.
+
+TUI settings for NASA:
+
+- **NASA API key**: defaults to NASA's shared `DEMO_KEY`.
+- **NASA fallback image count**: if today's APOD is a video, `bingwallpaper` asks NASA for random APOD entries and uses the first image it finds.
+
+For regular use, you should get your own NASA API key because `DEMO_KEY` is rate-limited.
+
+### ESA Images
+
+ESA Images uses the latest entry from the public ESA Images page.
+
+TUI setting for ESA:
+
+- **ESA Images URL**: defaults to `https://www.esa.int/ESA_Multimedia/Images`.
+
+ESA can sometimes block scripted requests. If that happens, try again later or switch to Bing or NASA in the TUI.
+
+## Automatic updates
+
+`bingwallpaper` uses a systemd **user** timer, not a root system service.
+
+Installed files:
+
+```text
+~/.local/bin/bingwallpaper
+~/.config/bingwallpaper/config
+~/.config/systemd/user/bingwallpaper.service
+~/.config/systemd/user/bingwallpaper.timer
 ```
 
-### NASA APOD options
-
-NASA APOD works with the public `DEMO_KEY` by default, but NASA rate-limits that shared key. For regular daily use, get your own key from NASA and pass it as `NASA_API_KEY`:
+Useful timer commands:
 
 ```bash
-WALLPAPER_SOURCE=nasa NASA_API_KEY="your_api_key_here" ./bing-wallpaper.sh
+systemctl --user status bingwallpaper.timer
 ```
 
-When today's APOD is not an image, the script requests random APOD entries and selects the first image. Change the request size with `NASA_APOD_FALLBACK_COUNT`:
-
 ```bash
-WALLPAPER_SOURCE=nasa NASA_APOD_FALLBACK_COUNT=20 ./bing-wallpaper.sh
+journalctl --user -u bingwallpaper.service -n 50 --no-pager
 ```
 
-### ESA options
+```bash
+systemctl --user start bingwallpaper.service
+```
 
-The ESA source scrapes the public ESA Images listing and then uses the selected image page's Open Graph image URL. You can point it at another ESA Images listing page with `ESA_IMAGES_URL`:
+You normally do not need these commands because the TUI manages the timer for you.
+
+## Manual configuration
+
+Advanced users can edit the config file directly:
 
 ```bash
-WALLPAPER_SOURCE=esa ESA_IMAGES_URL="https://www.esa.int/ESA_Multimedia/Images/2026/04" ./bing-wallpaper.sh
+nano ~/.config/bingwallpaper/config
+```
+
+Example config:
+
+```bash
+ENABLED="yes"
+CHECK_INTERVAL="24h"
+WALLPAPER_SOURCE="bing"
+WALLPAPER_TARGET_DIR="$HOME/Pictures"
+BING_MARKET="de-DE"
+BING_RESOLUTION="UHD"
+NASA_API_KEY="DEMO_KEY"
+NASA_APOD_FALLBACK_COUNT="10"
+ESA_IMAGES_URL="https://www.esa.int/ESA_Multimedia/Images"
+```
+
+After editing the file manually, apply the timer settings:
+
+```bash
+bingwallpaper --apply
 ```
 
 ## Requirements
 
-- GNOME desktop (`gsettings`, `gnome-shell`)
+- Debian-based Linux distribution, recommended target: Zorin OS 18
+- GNOME desktop with `gsettings`
 - `bash`
 - `curl`
 - `jq`
-- `systemd` (for automated daily updates)
+- `systemd` user services
+- `wget` only if you choose the wget install command
+
+## Uninstall
+
+Run:
+
+```bash
+systemctl --user disable --now bingwallpaper.timer
+rm -f ~/.config/systemd/user/bingwallpaper.service ~/.config/systemd/user/bingwallpaper.timer
+rm -f ~/.local/bin/bingwallpaper
+systemctl --user daemon-reload
+```
+
+Optional: remove the saved settings and downloaded images:
+
+```bash
+rm -rf ~/.config/bingwallpaper
+rm -f ~/Pictures/bing-wallpaper.jpg ~/Pictures/nasa-wallpaper.jpg ~/Pictures/esa-wallpaper.jpg
+```

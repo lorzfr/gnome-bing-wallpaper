@@ -1,11 +1,12 @@
 #!/bin/sh
 set -eu
 
-SERVICE_NAME="gnome-bing-wallpaper"
+APP_NAME="bingwallpaper"
+LEGACY_SERVICE_NAME="gnome-bing-wallpaper"
 REPO_RAW_BASE_URL="https://raw.githubusercontent.com/lorzfr/gnome-bing-wallpaper/main"
 INSTALL_DIR="${HOME}/.local/bin"
 SYSTEMD_USER_DIR="${HOME}/.config/systemd/user"
-TARGET_SCRIPT="${INSTALL_DIR}/${SERVICE_NAME}"
+TARGET_SCRIPT="${INSTALL_DIR}/${APP_NAME}"
 SOURCE_SCRIPT=""
 TEMP_SCRIPT=""
 
@@ -32,7 +33,7 @@ check_os() {
 
   id_like="${ID_LIKE:-}"
   if [ "${ID}" != "debian" ] && [ "${ID}" != "zorin" ] && ! printf '%s' "${id_like}" | grep -q "debian"; then
-    error "This installer targets Debian-based systems (recommended: Zorin OS 18)."
+    error "This installer targets Debian-based GNOME systems (recommended: Zorin OS 18)."
     exit 1
   fi
 
@@ -59,7 +60,7 @@ check_gnome() {
 
 install_dependencies() {
   missing=""
-  for cmd in curl jq systemctl; do
+  for cmd in bash curl jq systemctl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       missing="${missing} ${cmd}"
     fi
@@ -77,102 +78,98 @@ install_dependencies() {
 
   info "Installing missing dependencies:${missing}"
   sudo apt-get update
-  sudo apt-get install -y curl jq systemd
+  sudo apt-get install -y bash curl jq systemd
   success "Dependencies installed."
+}
+
+download_file() {
+  url="$1"
+  output="$2"
+
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsSL "${url}" -o "${output}"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -qO "${output}" "${url}"
+  else
+    error "Either curl or wget is required to download ${APP_NAME}."
+    exit 1
+  fi
 }
 
 prepare_source_script() {
   local_script="$(pwd)/bing-wallpaper.sh"
   if [ -f "${local_script}" ]; then
     SOURCE_SCRIPT="${local_script}"
-    success "Using local wallpaper script from ${SOURCE_SCRIPT}"
+    success "Using local program from ${SOURCE_SCRIPT}"
     return
   fi
 
   TEMP_SCRIPT="$(mktemp)"
-  info "Downloading wallpaper script from ${REPO_RAW_BASE_URL}/bing-wallpaper.sh"
-  if ! curl -fsSL "${REPO_RAW_BASE_URL}/bing-wallpaper.sh" -o "${TEMP_SCRIPT}"; then
+  info "Downloading ${APP_NAME} from ${REPO_RAW_BASE_URL}/bing-wallpaper.sh"
+  if ! download_file "${REPO_RAW_BASE_URL}/bing-wallpaper.sh" "${TEMP_SCRIPT}"; then
     rm -f "${TEMP_SCRIPT}"
     TEMP_SCRIPT=""
-    error "Failed to download bing-wallpaper.sh from GitHub."
+    error "Failed to download ${APP_NAME} from GitHub."
     exit 1
   fi
 
   chmod 0755 "${TEMP_SCRIPT}"
   SOURCE_SCRIPT="${TEMP_SCRIPT}"
-  success "Downloaded wallpaper script."
+  success "Downloaded ${APP_NAME}."
 }
 
-install_script() {
+install_program() {
   mkdir -p "${INSTALL_DIR}"
   install -m 0755 "${SOURCE_SCRIPT}" "${TARGET_SCRIPT}"
-  success "Installed wallpaper script to ${TARGET_SCRIPT}"
+  success "Installed ${APP_NAME} to ${TARGET_SCRIPT}"
 }
 
-
-write_optional_environment() {
-  unit_file="$1"
-  for var_name in WALLPAPER_SOURCE BING_MARKET BING_RESOLUTION NASA_API_KEY NASA_APOD_FALLBACK_COUNT ESA_IMAGES_URL; do
-    eval "var_value=\${${var_name}:-}"
-    if [ -n "${var_value}" ]; then
-      # Values intended for these options are URL/API-key/source strings without shell quoting needs.
-      printf 'Environment=%s=%s\n' "${var_name}" "${var_value}" >> "${unit_file}"
-    fi
-  done
+remove_legacy_units() {
+  if command -v systemctl >/dev/null 2>&1; then
+    systemctl --user disable --now "${LEGACY_SERVICE_NAME}.timer" >/dev/null 2>&1 || true
+  fi
+  rm -f \
+    "${SYSTEMD_USER_DIR}/${LEGACY_SERVICE_NAME}.service" \
+    "${SYSTEMD_USER_DIR}/${LEGACY_SERVICE_NAME}.timer" \
+    "${INSTALL_DIR}/${LEGACY_SERVICE_NAME}"
 }
 
-install_systemd_units() {
-  mkdir -p "${SYSTEMD_USER_DIR}"
+ensure_path_hint() {
+  case ":${PATH}:" in
+    *":${INSTALL_DIR}:"*) ;;
+    *) warn "${INSTALL_DIR} is not in PATH. Add it or open a new terminal if your shell config already includes it." ;;
+  esac
+}
 
-  service_unit="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
-  cat > "${service_unit}" <<UNIT
-[Unit]
-Description=Set GNOME wallpaper from configured image source
-After=graphical-session.target
-Wants=graphical-session.target
+configure_program() {
+  info "Creating the default config and systemd user timer."
+  "${TARGET_SCRIPT}" --apply
 
-[Service]
-Type=oneshot
-UNIT
-  write_optional_environment "${service_unit}"
-  cat >> "${service_unit}" <<UNIT
-ExecStart=%h/.local/bin/${SERVICE_NAME}
-UNIT
-
-  cat > "${SYSTEMD_USER_DIR}/${SERVICE_NAME}.timer" <<UNIT
-[Unit]
-Description=Run GNOME wallpaper updater daily
-
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=24h
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-UNIT
-
-  systemctl --user daemon-reload
-  systemctl --user enable --now "${SERVICE_NAME}.timer"
-  systemctl --user start "${SERVICE_NAME}.service"
-
-  success "Systemd user service and timer installed."
+  if [ -r /dev/tty ] && [ -w /dev/tty ]; then
+    info "Opening the ${APP_NAME} configuration TUI."
+    "${TARGET_SCRIPT}" </dev/tty >/dev/tty
+  else
+    warn "No interactive terminal is available, so the TUI was not opened. Run '${APP_NAME}' later to configure it."
+  fi
 }
 
 main() {
-  info "Installing GNOME Bing Wallpaper service..."
+  info "Installing ${APP_NAME}..."
   check_os
   check_gnome
   install_dependencies
   prepare_source_script
-  install_script
-  install_systemd_units
+  install_program
+  remove_legacy_units
+  configure_program
+  ensure_path_hint
 
   echo
   success "All done 🎉"
-  echo "- Timer status: systemctl --user status ${SERVICE_NAME}.timer"
-  echo "- Last run logs: journalctl --user -u ${SERVICE_NAME}.service -n 50 --no-pager"
-  echo "- Re-run now: systemctl --user start ${SERVICE_NAME}.service"
+  echo "- Open settings: ${APP_NAME}"
+  echo "- Update now: ${APP_NAME} --update"
+  echo "- Timer status: systemctl --user status ${APP_NAME}.timer"
+  echo "- Last run logs: journalctl --user -u ${APP_NAME}.service -n 50 --no-pager"
 }
 
 main "$@"
