@@ -10,6 +10,13 @@ This project includes an installer for **Zorin OS 18 (Debian-based)** that sets 
 ./install.sh
 ```
 
+To install the timer with a non-default source, pass the source when you run the installer. The installer writes supported provider variables into the systemd user service:
+
+```bash
+WALLPAPER_SOURCE=nasa NASA_API_KEY="your_api_key_here" ./install.sh
+WALLPAPER_SOURCE=esa ./install.sh
+```
+
 Or run it directly from GitHub:
 
 ```bash

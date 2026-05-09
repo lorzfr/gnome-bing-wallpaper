@@ -109,6 +109,18 @@ install_script() {
   success "Installed wallpaper script to ${TARGET_SCRIPT}"
 }
 
+
+write_optional_environment() {
+  unit_file="$1"
+  for var_name in WALLPAPER_SOURCE BING_MARKET BING_RESOLUTION NASA_API_KEY NASA_APOD_FALLBACK_COUNT ESA_IMAGES_URL; do
+    eval "var_value=\${${var_name}:-}"
+    if [ -n "${var_value}" ]; then
+      # Values intended for these options are URL/API-key/source strings without shell quoting needs.
+      printf 'Environment=%s=%s\n' "${var_name}" "${var_value}" >> "${unit_file}"
+    fi
+  done
+}
+
 install_systemd_units() {
   "${TARGET_SCRIPT}" install-systemd
   success "Systemd user service and timer installed."
