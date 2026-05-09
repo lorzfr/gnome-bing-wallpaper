@@ -59,7 +59,7 @@ check_gnome() {
 
 install_dependencies() {
   missing=""
-  for cmd in curl jq systemctl; do
+  for cmd in curl jq systemctl whiptail; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       missing="${missing} ${cmd}"
     fi
@@ -77,7 +77,7 @@ install_dependencies() {
 
   info "Installing missing dependencies:${missing}"
   sudo apt-get update
-  sudo apt-get install -y curl jq systemd
+  sudo apt-get install -y curl jq systemd whiptail
   success "Dependencies installed."
 }
 
@@ -122,45 +122,12 @@ write_optional_environment() {
 }
 
 install_systemd_units() {
-  mkdir -p "${SYSTEMD_USER_DIR}"
-
-  service_unit="${SYSTEMD_USER_DIR}/${SERVICE_NAME}.service"
-  cat > "${service_unit}" <<UNIT
-[Unit]
-Description=Set GNOME wallpaper from configured image source
-After=graphical-session.target
-Wants=graphical-session.target
-
-[Service]
-Type=oneshot
-UNIT
-  write_optional_environment "${service_unit}"
-  cat >> "${service_unit}" <<UNIT
-ExecStart=%h/.local/bin/${SERVICE_NAME}
-UNIT
-
-  cat > "${SYSTEMD_USER_DIR}/${SERVICE_NAME}.timer" <<UNIT
-[Unit]
-Description=Run GNOME wallpaper updater daily
-
-[Timer]
-OnBootSec=2min
-OnUnitActiveSec=24h
-Persistent=true
-
-[Install]
-WantedBy=timers.target
-UNIT
-
-  systemctl --user daemon-reload
-  systemctl --user enable --now "${SERVICE_NAME}.timer"
-  systemctl --user start "${SERVICE_NAME}.service"
-
+  "${TARGET_SCRIPT}" install-systemd
   success "Systemd user service and timer installed."
 }
 
 main() {
-  info "Installing GNOME Bing Wallpaper service..."
+  info "Installing GNOME wallpaper service and configuration command..."
   check_os
   check_gnome
   install_dependencies
@@ -172,7 +139,9 @@ main() {
   success "All done 🎉"
   echo "- Timer status: systemctl --user status ${SERVICE_NAME}.timer"
   echo "- Last run logs: journalctl --user -u ${SERVICE_NAME}.service -n 50 --no-pager"
-  echo "- Re-run now: systemctl --user start ${SERVICE_NAME}.service"
+  echo "- Configure: ${TARGET_SCRIPT} configure"
+  echo "- Run now: ${TARGET_SCRIPT} run"
+  echo "- Enable/disable: ${TARGET_SCRIPT} enable | ${TARGET_SCRIPT} disable"
 }
 
 main "$@"
