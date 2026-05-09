@@ -312,7 +312,7 @@ prompt_value() {
   local label current value
   label="$1"
   current="$2"
-  printf '%s [%s]: ' "${label}" "${current}"
+  printf '%s [%s]: ' "${label}" "${current}" >&2
   read -r value
   if [[ -n "${value}" ]]; then
     printf '%s' "${value}"
